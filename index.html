@@ -136,6 +136,16 @@
         </div>
     </header>
 
+    <!-- Warnings for Local Testing (CORS Protocol) -->
+    <div id="localWarningBanner" class="hidden max-w-7xl mx-auto w-full px-4 pt-6 sm:px-6 lg:px-8">
+        <div class="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 flex gap-3 text-amber-300 text-xs">
+            <i class="fa-solid fa-triangle-exclamation text-lg"></i>
+            <div>
+                <span class="font-bold">Peringatan Mode Lokal (file://):</span> Browser Anda mungkin memblokir pengambilan data Google Sheets karena kebijakan CORS lokal. Silakan unggah (push) ke GitHub terlebih dahulu, data akan otomatis ter-sinkronisasi 100% lancar saat diakses lewat link GitHub Pages Anda!
+            </div>
+        </div>
+    </div>
+
     <!-- Content Area -->
     <main class="flex-grow max-w-7xl mx-auto w-full px-4 py-8 sm:px-6 lg:px-8 flex flex-col">
         
@@ -217,12 +227,17 @@
 
     <!-- Scripting Core -->
     <script>
-        // === 1. TARUH LINK CSV SPREADSHEET ANDA DI SINI ===
+        // === 1. LINK CSV SPREADSHEET ANDA (SUDAH DIINTEGRASIKAN SECARA OTOMATIS) ===
         const CSV_URLS = {
             yayasan: "https://docs.google.com/spreadsheets/d/e/2PACX-1vT0j9sIY3E9zXx0-Il4hOZwri1-pbG1D9VUDPmwLFJjYyoLpCMtDz7Wq2zZemN2mBeLp_3e-L_vNTGe/pub?gid=0&single=true&output=csv",
             smk: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQAU5Tc_f67hKZMVOnkXTkmxkQ7fH1PdWVJCPm2KzjJUqr9bjK6IRDndFEoOJVzLUTHjPL1JtF_V80e/pub?gid=0&single=true&output=csv", 
             smp: "https://docs.google.com/spreadsheets/d/e/2PACX-1vSm9iQDbpSbEST6sSNokCN0IgvUMf-sHB7LgHdNYci0QTaW88M1oT5m0VX2U6w-vjYkxA31HmVV_Sil/pub?gid=0&single=true&output=csv"
         };
+
+        // Check if running locally
+        if (window.location.protocol === 'file:') {
+            document.getElementById('localWarningBanner').classList.remove('hidden');
+        }
 
         // === 2. WARNA & DESAIN KATEGORI PREMIUM ===
         const THEME = {
@@ -407,36 +422,43 @@
             const year = currentDate.getFullYear();
             await getIndonesianHolidays(year);
 
-            // 2. Ambil Data Google Sheets CSV
+            // 2. Ambil Data Google Sheets CSV Anda
             const fetchPromises = Object.keys(CSV_URLS).map(category => {
                 return new Promise((resolve) => {
                     const url = CSV_URLS[category];
                     
-                    if(url.includes("URL_CSV_")) {
-                        generatePremiumDummyData(category);
-                        resolve();
-                        return;
-                    }
-
                     Papa.parse(url, {
                         download: true,
                         header: true,
                         skipEmptyLines: true,
                         complete: function(results) {
-                            results.data.forEach(row => {
-                                if(row.Tanggal && row.Kegiatan) {
-                                    allEvents.push({
-                                        date: formatDateString(row.Tanggal.trim()),
-                                        title: row.Kegiatan.trim(),
-                                        desc: row.Deskripsi ? row.Deskripsi.trim() : 'Tidak ada rincian kegiatan tambahan.',
-                                        category: category
-                                    });
+                            results.data.forEach((row, index) => {
+                                // === FUZZY HEADER MATCHING ===
+                                // Mencari nama kolom yang mirip meskipun huruf kecil/besar atau istilah lain
+                                const keys = Object.keys(row);
+                                const dateKey = keys.find(k => ['tanggal', 'date', 'tgl'].includes(k.toLowerCase().trim()));
+                                const titleKey = keys.find(k => ['kegiatan', 'acara', 'title', 'kegiatan utama', 'nama kegiatan'].includes(k.toLowerCase().trim()));
+                                const descKey = keys.find(k => ['deskripsi', 'keterangan', 'desc', 'rincian', 'uraian'].includes(k.toLowerCase().trim()));
+
+                                if (dateKey && titleKey && row[dateKey] && row[titleKey]) {
+                                    const parsedDate = robustParseDate(row[dateKey]);
+                                    
+                                    if (parsedDate) {
+                                        allEvents.push({
+                                            date: parsedDate,
+                                            title: row[titleKey].trim(),
+                                            desc: descKey && row[descKey] ? row[descKey].trim() : 'Tidak ada rincian kegiatan tambahan.',
+                                            category: category
+                                        });
+                                    } else {
+                                        console.warn(`Format tanggal tidak valid pada baris ${index + 1} di sheet ${category}: "${row[dateKey]}"`);
+                                    }
                                 }
                             });
                             resolve();
                         },
-                        error: function() {
-                            console.warn("Gagal sinkron CSV kategori: " + category);
+                        error: function(err) {
+                            console.warn(`Gagal sinkron CSV kategori: ${category}. Error: `, err);
                             resolve();
                         }
                     });
@@ -444,17 +466,53 @@
             });
 
             await Promise.all(fetchPromises);
+            console.log("Total agenda tersinkronisasi: ", allEvents.length);
         }
 
-        // Helper merapikan format string tanggal
-        function formatDateString(dateStr) {
-            if (dateStr.includes("/")) {
-                const parts = dateStr.split("/");
-                if (parts[2].length === 4) {
-                    return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-                }
+        // === PARSER TANGGAL SUPER KUAT & FLEKSIBEL ===
+        function robustParseDate(dateStr) {
+            if (!dateStr) return null;
+            dateStr = dateStr.trim();
+            
+            // 1. Jika sudah YYYY-MM-DD (contoh: 2026-05-23)
+            if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+                return dateStr;
             }
-            return dateStr;
+            
+            // 2. Jika format DD/MM/YYYY atau DD-MM-YYYY (contoh: 23/05/2026 atau 23-05-2026)
+            let dmyMatch = dateStr.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+            if (dmyMatch) {
+                let day = dmyMatch[1].padStart(2, '0');
+                let month = dmyMatch[2].padStart(2, '0');
+                let year = dmyMatch[3];
+                return `${year}-${month}-${day}`;
+            }
+            
+            // 3. Jika format YYYY/MM/DD (contoh: 2026/05/23)
+            let ymdMatch = dateStr.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+            if (ymdMatch) {
+                let year = ymdMatch[1];
+                let month = ymdMatch[2].padStart(2, '0');
+                let day = ymdMatch[3].padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            }
+
+            // 4. Fallback menggunakan Javascript Date Engine (Bisa menerjemahkan nama bulan Indonesia)
+            let cleanedDate = dateStr;
+            const monthsId = ['januari', 'februari', 'maret', 'april', 'mei', 'juni', 'juli', 'agustus', 'september', 'oktober', 'november', 'desember'];
+            const monthsEn = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+            
+            monthsId.forEach((m, idx) => {
+                cleanedDate = cleanedDate.toLowerCase().replace(m, monthsEn[idx]);
+            });
+            
+            let parsed = Date.parse(cleanedDate);
+            if (!isNaN(parsed)) {
+                let d = new Date(parsed);
+                return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            }
+            
+            return null;
         }
 
         // Mendapatkan Hari Libur Nasional (Prioritas DB Lokal -> Fallback API)
@@ -497,7 +555,7 @@
                     { date: `${year}-01-01`, title: 'Tahun Baru Masehi', desc: 'Libur Nasional', category: 'nasional' },
                     { date: `${year}-05-01`, title: 'Hari Buruh Internasional', desc: 'Libur Nasional', category: 'nasional' },
                     { date: `${year}-06-01`, title: 'Hari Lahir Pancasila', desc: 'Libur Nasional', category: 'nasional' },
-                    { date: `${year}-08-17`, title: 'Hari Kemerdekaan RI', desc: 'Libur Nasional Ulang Tahun RI', category: 'nasional' },
+                    { date: `${year}-08-17`, title: 'Hari Proklamasi Kemerdekaan RI', desc: 'Libur Nasional Ulang Tahun RI', category: 'nasional' },
                     { date: `${year}-12-25`, title: 'Hari Raya Natal', desc: 'Libur Keagamaan Nasional', category: 'nasional' }
                 ];
                 allEvents.push(...minimalHolidays);
@@ -522,29 +580,6 @@
                 "Nyepi Bali Hindu New Year": "Hari Raya Nyepi"
             };
             return dictionary[name] || name;
-        }
-
-        // Data Simulasi Premium jika belum pasang URL CSV
-        function generatePremiumDummyData(category) {
-            const year = currentDate.getFullYear();
-            const monthStr = String(currentDate.getMonth() + 1).padStart(2, '0');
-            
-            if(category === 'yayasan') {
-                allEvents.push(
-                    { date: `${year}-${monthStr}-05`, title: 'Rapat Kerja Pengurus & Anggota', desc: 'Evaluasi program bulanan dan penyelarasan strategi antardivisi yayasan.', category: 'yayasan' },
-                    { date: `${year}-${monthStr}-20`, title: 'Seminar Pendidikan & Karakter', desc: 'Peningkatan kapasitas guru dan staf pendidik di lingkungan yayasan terpadu.', category: 'yayasan' }
-                );
-            } else if (category === 'smk') {
-                allEvents.push(
-                    { date: `${year}-${monthStr}-12`, title: 'Pelaksanaan UKK (Keahlian)', desc: 'Asesmen kompetensi teknis untuk kelas XII yang diuji oleh Asosiasi Industri.', category: 'smk' },
-                    { date: `${year}-${monthStr}-25`, title: 'Job Fair & Expo Hasil Karya SMK', desc: 'Pameran kreasi inovasi teknologi sekaligus rekrutmen kerja langsung.', category: 'smk' }
-                );
-            } else if (category === 'smp') {
-                allEvents.push(
-                    { date: `${year}-${monthStr}-15`, title: 'Penilaian Tengah Semester (PTS)', desc: 'Ujian berkala mengukur kompetensi pembelajaran siswa di pertengahan semester.', category: 'smp' },
-                    { date: `${year}-${monthStr}-20`, title: 'Pentas Seni & Bazar Kreatif SMP', desc: 'Ajang penyaluran bakat estetika siswa dalam bidang musik, tari, dan kuliner tradisional.', category: 'smp' }
-                );
-            }
         }
 
         // Navigasi Bulan / Tahun
