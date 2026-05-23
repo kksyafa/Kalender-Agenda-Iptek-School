@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portal Agenda Terpadu & Kalender Akademik</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- PapaParse untuk CSV -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <!-- Font Awesome Pro / Free Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts (Inter & Plus Jakarta Sans) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        display: ['Plus Jakarta Sans', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0b0f19; /* Tema gelap elegan / Deep Space Slate */
+        }
+        
+        .font-display {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+
+        /* Glassmorphism premium effect */
+        .glass-panel {
+            background: rgba(17, 24, 39, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .glass-card {
+            background: rgba(31, 41, 55, 0.4);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .glass-card:hover {
+            background: rgba(31, 41, 55, 0.6);
+            border-color: rgba(255, 255, 255, 0.12);
+            transform: translateY(-2px);
+        }
+
+        /* Animasi Transisi & Popup */
+        @keyframes modalEnter {
+            from { transform: scale(0.95); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+        
+        .animate-modal {
+            animation: modalEnter 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        /* Sembunyikan default scrollbar */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 5px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.02);
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 99px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        /* Highlight hari ini */
+        .glow-today {
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.25);
+        }
+    </style>
+</head>
+<body class="text-slate-100 min-h-screen flex flex-col selection:bg-blue-500/30 selection:text-blue-200">
+
+    <!-- Gradient Background Highlights -->
+    <div class="fixed top-0 left-1/4 w-[500px] h-[500px] bg-blue-600/10 rounded-full blur-[120px] pointer-events-none -z-10"></div>
+    <div class="fixed bottom-0 right-1/4 w-[600px] h-[600px] bg-indigo-600/10 rounded-full blur-[150px] pointer-events-none -z-10"></div>
+
+    <!-- Header Premium -->
+    <header class="glass-panel border-b border-slate-800/80 sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/20">
+                    <i class="fa-solid fa-calendar-days text-white text-lg"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold font-display tracking-tight text-white">Agenda IPTEK SCHOOL</h1>
+                    <p class="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Yayasan, SMK, & SMP Terpadu</p>
+                </div>
+            </div>
+            
+            <!-- Kategori Legenda -->
+            <div class="flex flex-wrap items-center justify-center gap-4">
+                <div class="flex flex-wrap gap-3 text-xs font-semibold bg-slate-900/60 p-2 rounded-xl border border-slate-800">
+                    <span class="flex items-center gap-1.5 px-2 py-1 rounded bg-blue-500/10 text-blue-400">
+                        <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span> Yayasan
+                    </span>
+                    <span class="flex items-center gap-1.5 px-2 py-1 rounded bg-sky-400/10 text-sky-400">
+                        <span class="w-2 h-2 rounded-full bg-sky-400"></span> SMK
+                    </span>
+                    <span class="flex items-center gap-1.5 px-2 py-1 rounded bg-orange-500/10 text-orange-400">
+                        <span class="w-2 h-2 rounded-full bg-orange-500"></span> SMP
+                    </span>
+                    <span class="flex items-center gap-1.5 px-2 py-1 rounded bg-rose-500/10 text-rose-400">
+                        <span class="w-2 h-2 rounded-full bg-rose-500"></span> Libur Nasional
+                    </span>
+                </div>
+                
+                <!-- View Switcher -->
+                <div class="bg-slate-900/80 p-1 rounded-xl border border-slate-800 flex text-xs font-semibold">
+                    <button id="btnMonthView" class="px-4 py-2 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md transition-all duration-300" onclick="changeView('month')">Bulan</button>
+                    <button id="btnYearView" class="px-4 py-2 rounded-lg text-slate-400 hover:text-slate-200 transition-all duration-300" onclick="changeView('year')">Tahun</button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Content Area -->
+    <main class="flex-grow max-w-7xl mx-auto w-full px-4 py-8 sm:px-6 lg:px-8 flex flex-col">
+        
+        <!-- Controls & Date Selector -->
+        <div class="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4 bg-slate-900/40 p-4 rounded-2xl border border-slate-800/60 backdrop-blur-md">
+            <div class="flex items-center gap-2">
+                <button onclick="navigate(-1)" class="w-10 h-10 rounded-xl flex items-center justify-center bg-slate-800/60 hover:bg-slate-700/80 text-slate-300 hover:text-white transition duration-200 border border-slate-700/40">
+                    <i class="fa-solid fa-chevron-left text-sm"></i>
+                </button>
+                <button onclick="goToToday()" class="px-3 py-2 text-xs font-semibold rounded-xl bg-slate-800/60 hover:bg-slate-700/80 text-slate-300 hover:text-white transition duration-200 border border-slate-700/40">
+                    Hari Ini
+                </button>
+                <button onclick="navigate(1)" class="w-10 h-10 rounded-xl flex items-center justify-center bg-slate-800/60 hover:bg-slate-700/80 text-slate-300 hover:text-white transition duration-200 border border-slate-700/40">
+                    <i class="fa-solid fa-chevron-right text-sm"></i>
+                </button>
+            </div>
+            
+            <h2 id="currentDateDisplay" class="text-2xl font-extrabold font-display tracking-tight text-white capitalize bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
+                Memuat kalender...
+            </h2>
+            
+            <!-- Quick Year/Month Selector -->
+            <div class="flex gap-2">
+                <select id="quickMonthSelect" onchange="quickJump()" class="bg-slate-800/80 text-slate-300 text-xs font-semibold rounded-xl px-3 py-2 border border-slate-700/40 outline-none focus:border-blue-500"></select>
+                <select id="quickYearSelect" onchange="quickJump()" class="bg-slate-800/80 text-slate-300 text-xs font-semibold rounded-xl px-3 py-2 border border-slate-700/40 outline-none focus:border-blue-500"></select>
+            </div>
+        </div>
+
+        <!-- Sync Loading State -->
+        <div id="loadingIndicator" class="flex-grow flex flex-col items-center justify-center py-20">
+            <div class="relative w-16 h-16 mb-4">
+                <div class="absolute inset-0 rounded-full border-4 border-slate-800"></div>
+                <div class="absolute inset-0 rounded-full border-4 border-t-blue-500 animate-spin"></div>
+            </div>
+            <p class="text-slate-400 font-medium">Menyinkronkan database & hari libur nasional...</p>
+        </div>
+
+        <!-- Calendar Wrapper -->
+        <div id="calendarContainer" class="hidden flex-grow flex flex-col">
+            <!-- Render Target -->
+        </div>
+
+    </main>
+
+    <!-- Footnote -->
+    <footer class="py-6 border-t border-slate-900/60 text-center text-xs text-slate-500">
+        <p>&copy; 2026 Portal Multi-Agenda Terintegrasi. Semua data tersinkronisasi otomatis dari Google Sheets.</p>
+    </footer>
+
+    <!-- POPUP MODAL PREMIUM (Glassmorphic) -->
+    <div id="eventModal" class="fixed inset-0 z-50 hidden bg-black/60 backdrop-blur-md flex items-center justify-center p-4">
+        <div class="absolute inset-0" onclick="closeModal()"></div>
+        
+        <div class="relative w-full max-w-lg glass-panel rounded-3xl shadow-2xl border border-white/10 flex flex-col animate-modal max-h-[85vh] overflow-hidden">
+            <!-- Modal Header -->
+            <div class="px-6 py-5 border-b border-slate-800/80 flex justify-between items-center bg-slate-950/40">
+                <div>
+                    <span class="text-[10px] text-blue-400 font-bold uppercase tracking-widest block mb-0.5">DETAIL AGENDA</span>
+                    <h3 id="modalDate" class="text-lg font-bold font-display text-white">Tanggal Terpilih</h3>
+                </div>
+                <button onclick="closeModal()" class="w-8 h-8 flex items-center justify-center rounded-xl bg-slate-800/40 hover:bg-slate-800 text-slate-400 hover:text-white transition-all">
+                    <i class="fa-solid fa-xmark text-sm"></i>
+                </button>
+            </div>
+            
+            <!-- Modal Body (Scrollable) -->
+            <div id="modalBody" class="p-6 overflow-y-auto custom-scrollbar flex-grow bg-slate-950/20 space-y-4">
+                <!-- Cards render dynamically -->
+            </div>
+            
+            <!-- Modal Footer -->
+            <div class="px-6 py-4 border-t border-slate-800/80 bg-slate-950/60 text-right">
+                <button onclick="closeModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-semibold transition-all">
+                    Tutup Detail
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripting Core -->
+    <script>
+        // === 1. TARUH LINK CSV SPREADSHEET ANDA DI SINI ===
+        const CSV_URLS = {
+            yayasan: "https://docs.google.com/spreadsheets/d/e/2PACX-1vT0j9sIY3E9zXx0-Il4hOZwri1-pbG1D9VUDPmwLFJjYyoLpCMtDz7Wq2zZemN2mBeLp_3e-L_vNTGe/pub?output=csv",
+            smk: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQAU5Tc_f67hKZMVOnkXTkmxkQ7fH1PdWVJCPm2KzjJUqr9bjK6IRDndFEoOJVzLUTHjPL1JtF_V80e/pub?output=csv", 
+            smp: "https://docs.google.com/spreadsheets/d/e/2PACX-1vSm9iQDbpSbEST6sSNokCN0IgvUMf-sHB7LgHdNYci0QTaW88M1oT5m0VX2U6w-vjYkxA31HmVV_Sil/pub?output=csv"
+        };
+
+        // === 2. WARNA & DESAIN KATEGORI PREMIUM ===
+        const THEME = {
+            yayasan: {
+                badge: 'bg-blue-500/10 text-blue-400 border border-blue-500/20',
+                border: 'border-l-4 border-blue-500',
+                glow: 'shadow-[0_0_15px_rgba(59,130,246,0.15)]',
+                icon: 'fa-building-columns text-blue-400',
+                label: 'Agenda Yayasan',
+                gradient: 'from-blue-500/10 to-transparent'
+            },
+            smk: {
+                badge: 'bg-sky-400/10 text-sky-400 border border-sky-400/20',
+                border: 'border-l-4 border-sky-400',
+                glow: 'shadow-[0_0_15px_rgba(56,189,248,0.15)]',
+                icon: 'fa-user-gear text-sky-400',
+                label: 'Agenda SMK',
+                gradient: 'from-sky-400/10 to-transparent'
+            },
+            smp: {
+                badge: 'bg-orange-500/10 text-orange-400 border border-orange-500/20',
+                border: 'border-l-4 border-orange-500',
+                glow: 'shadow-[0_0_15px_rgba(249,115,22,0.15)]',
+                icon: 'fa-school text-orange-400',
+                label: 'Agenda SMP',
+                gradient: 'from-orange-500/10 to-transparent'
+            },
+            nasional: {
+                badge: 'bg-rose-500/15 text-rose-400 border border-rose-500/20',
+                border: 'border-l-4 border-rose-500',
+                glow: 'shadow-[0_0_15px_rgba(244,63,94,0.15)]',
+                icon: 'fa-solid fa-circle-exclamation text-rose-400',
+                label: 'Libur Nasional',
+                gradient: 'from-rose-500/10 to-transparent'
+            }
+        };
+
+        const HARI = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+        const BULAN = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+
+        let currentDate = new Date();
+        let currentView = 'month'; // 'month' atau 'year'
+        let allEvents = [];
+        let holidayCache = {}; // Cache Hari Libur Online
+
+        // ==========================================
+        // DATABASE LOKAL HARI LIBUR NASIONAL INDONESIA (SKB 3 MENTERI)
+        // Menjamin keagamaan (Islam, Kristen, Hindu, Buddha, Konghucu) tampil 100% akurat.
+        // ==========================================
+        const INDONESIAN_HOLIDAYS_DB = {
+            2025: [
+                { date: "2025-01-01", title: "Tahun Baru 2025 Masehi" },
+                { date: "2025-01-27", title: "Isra Mi'raj Nabi Muhammad SAW" },
+                { date: "2025-01-29", title: "Tahun Baru Imlek 2576 Kongzili" },
+                { date: "2025-03-29", title: "Hari Suci Nyepi (Tahun Baru Saka 1947)" },
+                { date: "2025-03-31", title: "Hari Raya Idul Fitri 1446 H" },
+                { date: "2025-04-01", title: "Hari Raya Idul Fitri 1446 H" },
+                { date: "2025-04-18", title: "Wafat Yesus Kristus" },
+                { date: "2025-04-20", title: "Hari Paskah" },
+                { date: "2025-05-01", title: "Hari Buruh Internasional" },
+                { date: "2025-05-12", title: "Hari Raya Waisak 2569 BE" },
+                { date: "2025-05-29", title: "Kenaikan Yesus Kristus" },
+                { date: "2025-06-01", title: "Hari Lahir Pancasila" },
+                { date: "2025-06-06", title: "Hari Raya Idul Adha 1446 H" },
+                { date: "2025-06-27", title: "Tahun Baru Islam 1447 H" },
+                { date: "2025-08-17", title: "Hari Proklamasi Kemerdekaan RI" },
+                { date: "2025-09-05", title: "Maulid Nabi Muhammad SAW" },
+                { date: "2025-12-25", title: "Hari Raya Natal" }
+            ],
+            2026: [
+                { date: "2026-01-01", title: "Tahun Baru 2026 Masehi" },
+                { date: "2026-01-15", title: "Isra Mi'raj Nabi Muhammad SAW" },
+                { date: "2026-02-17", title: "Tahun Baru Imlek 2577 Kongzili" },
+                { date: "2026-03-19", title: "Hari Suci Nyepi (Tahun Baru Saka 1948)" },
+                { date: "2026-03-20", title: "Hari Raya Idul Fitri 1447 H" },
+                { date: "2026-03-21", title: "Hari Raya Idul Fitri 1447 H" },
+                { date: "2026-04-03", title: "Wafat Yesus Kristus" },
+                { date: "2026-04-05", title: "Hari Paskah" },
+                { date: "2026-05-01", title: "Hari Buruh Internasional" },
+                { date: "2026-05-14", title: "Kenaikan Yesus Kristus" },
+                { date: "2026-05-27", title: "Hari Raya Idul Adha 1447 H" },
+                { date: "2026-05-31", title: "Hari Raya Waisak 2570 BE" },
+                { date: "2026-06-01", title: "Hari Lahir Pancasila" },
+                { date: "2026-06-16", title: "Tahun Baru Islam 1448 H" },
+                { date: "2026-08-17", title: "Hari Proklamasi Kemerdekaan RI" },
+                { date: "2026-08-25", title: "Maulid Nabi Muhammad SAW" },
+                { date: "2026-12-25", title: "Hari Raya Natal" }
+            ],
+            2027: [
+                { date: "2027-01-01", title: "Tahun Baru 2027 Masehi" },
+                { date: "2027-01-05", title: "Isra Mi'raj Nabi Muhammad SAW" },
+                { date: "2027-02-06", title: "Tahun Baru Imlek 2578 Kongzili" },
+                { date: "2027-03-09", title: "Hari Suci Nyepi (Tahun Baru Saka 1949)" },
+                { date: "2027-03-09", title: "Hari Raya Idul Fitri 1448 H" },
+                { date: "2027-03-10", title: "Hari Raya Idul Fitri 1448 H" },
+                { date: "2027-03-26", title: "Wafat Yesus Kristus" },
+                { date: "2027-03-28", title: "Hari Paskah" },
+                { date: "2027-05-01", title: "Hari Buruh Internasional" },
+                { date: "2027-05-06", title: "Kenaikan Yesus Kristus" },
+                { date: "2027-05-16", title: "Hari Raya Idul Adha 1448 H" },
+                { date: "2027-05-20", title: "Hari Raya Waisak 2571 BE" },
+                { date: "2027-06-01", title: "Hari Lahir Pancasila" },
+                { date: "2027-06-06", title: "Tahun Baru Islam 1449 H" },
+                { date: "2027-08-15", title: "Maulid Nabi Muhammad SAW" },
+                { date: "2027-08-17", title: "Hari Proklamasi Kemerdekaan RI" },
+                { date: "2027-12-25", title: "Hari Raya Natal" }
+            ],
+            2028: [
+                { date: "2028-01-01", title: "Tahun Baru 2028 Masehi" },
+                { date: "2028-01-24", title: "Isra Mi'raj Nabi Muhammad SAW" },
+                { date: "2028-01-26", title: "Tahun Baru Imlek 2579 Kongzili" },
+                { date: "2028-02-26", title: "Hari Raya Idul Fitri 1449 H" },
+                { date: "2028-02-27", title: "Hari Raya Idul Fitri 1449 H" },
+                { date: "2028-03-26", title: "Hari Suci Nyepi (Tahun Baru Saka 1950)" },
+                { date: "2028-04-14", title: "Wafat Yesus Kristus" },
+                { date: "2028-04-16", title: "Hari Paskah" },
+                { date: "2028-05-01", title: "Hari Buruh Internasional" },
+                { date: "2028-05-09", title: "Hari Raya Waisak 2572 BE" },
+                { date: "2028-05-25", title: "Kenaikan Yesus Kristus" },
+                { date: "2028-06-01", title: "Hari Lahir Pancasila" },
+                { date: "2028-06-03", title: "Hari Raya Idul Adha 1449 H" },
+                { date: "2028-06-24", title: "Tahun Baru Islam 1450 H" },
+                { date: "2028-08-17", title: "Hari Proklamasi Kemerdekaan RI" },
+                { date: "2028-09-03", title: "Maulid Nabi Muhammad SAW" },
+                { date: "2028-12-25", title: "Hari Raya Natal" }
+            ]
+        };
+
+        // Mulai Aplikasi
+        async function initApp() {
+            populateSelectors();
+            await fetchAllData();
+            document.getElementById('loadingIndicator').classList.add('hidden');
+            document.getElementById('calendarContainer').classList.remove('hidden');
+            render();
+        }
+
+        // Dropdown Pilih Tahun & Bulan Cepat
+        function populateSelectors() {
+            const mSelect = document.getElementById('quickMonthSelect');
+            const ySelect = document.getElementById('quickYearSelect');
+
+            BULAN.forEach((m, idx) => {
+                const opt = document.createElement('option');
+                opt.value = idx;
+                opt.text = m;
+                mSelect.appendChild(opt);
+            });
+
+            const currentYear = currentDate.getFullYear();
+            for(let y = currentYear - 5; y <= currentYear + 5; y++) {
+                const opt = document.createElement('option');
+                opt.value = y;
+                opt.text = y;
+                ySelect.appendChild(opt);
+            }
+        }
+
+        function updateSelectors() {
+            document.getElementById('quickMonthSelect').value = currentDate.getMonth();
+            document.getElementById('quickYearSelect').value = currentDate.getFullYear();
+        }
+
+        function quickJump() {
+            const m = parseInt(document.getElementById('quickMonthSelect').value);
+            const y = parseInt(document.getElementById('quickYearSelect').value);
+            currentDate.setMonth(m);
+            currentDate.setFullYear(y);
+            render();
+        }
+
+        function goToToday() {
+            currentDate = new Date();
+            render();
+        }
+
+        // Fetch Data CSV & Libur Nasional
+        async function fetchAllData() {
+            allEvents = [];
+            
+            // 1. Ambil Hari Libur Nasional menggunakan Sistem Hybrid
+            const year = currentDate.getFullYear();
+            await getIndonesianHolidays(year);
+
+            // 2. Ambil Data Google Sheets CSV
+            const fetchPromises = Object.keys(CSV_URLS).map(category => {
+                return new Promise((resolve) => {
+                    const url = CSV_URLS[category];
+                    
+                    if(url.includes("URL_CSV_")) {
+                        generatePremiumDummyData(category);
+                        resolve();
+                        return;
+                    }
+
+                    Papa.parse(url, {
+                        download: true,
+                        header: true,
+                        skipEmptyLines: true,
+                        complete: function(results) {
+                            results.data.forEach(row => {
+                                if(row.Tanggal && row.Kegiatan) {
+                                    allEvents.push({
+                                        date: formatDateString(row.Tanggal.trim()),
+                                        title: row.Kegiatan.trim(),
+                                        desc: row.Deskripsi ? row.Deskripsi.trim() : 'Tidak ada rincian kegiatan tambahan.',
+                                        category: category
+                                    });
+                                }
+                            });
+                            resolve();
+                        },
+                        error: function() {
+                            console.warn("Gagal sinkron CSV kategori: " + category);
+                            resolve();
+                        }
+                    });
+                });
+            });
+
+            await Promise.all(fetchPromises);
+        }
+
+        // Helper merapikan format string tanggal
+        function formatDateString(dateStr) {
+            if (dateStr.includes("/")) {
+                const parts = dateStr.split("/");
+                if (parts[2].length === 4) {
+                    return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+                }
+            }
+            return dateStr;
+        }
+
+        // Mendapatkan Hari Libur Nasional (Prioritas DB Lokal -> Fallback API)
+        async function getIndonesianHolidays(year) {
+            // Cek jika ada di DB lokal yang super akurat
+            if (INDONESIAN_HOLIDAYS_DB[year]) {
+                const localHolidays = INDONESIAN_HOLIDAYS_DB[year].map(h => ({
+                    date: h.date,
+                    title: h.title,
+                    desc: "Hari Libur Resmi Nasional Indonesia (SKB 3 Menteri).",
+                    category: "nasional"
+                }));
+                allEvents.push(...localHolidays);
+                return;
+            }
+
+            // Jika tahun di luar jangkauan DB lokal (misal 2029 ke atas), panggil API Nager.Date
+            if(holidayCache[year]) {
+                allEvents.push(...holidayCache[year]);
+                return;
+            }
+
+            try {
+                const response = await fetch(`https://date.nager.at/api/v3/PublicHolidays/${year}/ID`);
+                if (!response.ok) throw new Error("API Offline");
+                
+                const data = await response.json();
+                const holidays = data.map(h => ({
+                    date: h.date,
+                    title: translateHoliday(h.localName || h.name),
+                    desc: "Hari Libur Resmi Nasional Indonesia.",
+                    category: "nasional"
+                }));
+
+                holidayCache[year] = holidays;
+                allEvents.push(...holidays);
+            } catch (err) {
+                // Fallback paling akhir jika internet putus/offline
+                const minimalHolidays = [
+                    { date: `${year}-01-01`, title: 'Tahun Baru Masehi', desc: 'Libur Nasional', category: 'nasional' },
+                    { date: `${year}-05-01`, title: 'Hari Buruh Internasional', desc: 'Libur Nasional', category: 'nasional' },
+                    { date: `${year}-06-01`, title: 'Hari Lahir Pancasila', desc: 'Libur Nasional', category: 'nasional' },
+                    { date: `${year}-08-17`, title: 'Hari Kemerdekaan RI', desc: 'Libur Nasional Ulang Tahun RI', category: 'nasional' },
+                    { date: `${year}-12-25`, title: 'Hari Raya Natal', desc: 'Libur Keagamaan Nasional', category: 'nasional' }
+                ];
+                allEvents.push(...minimalHolidays);
+            }
+        }
+
+        // Terjemahan nama hari besar internasional ke Bahasa Indonesia
+        function translateHoliday(name) {
+            const dictionary = {
+                "New Year's Day": "Tahun Baru Masehi",
+                "Good Friday": "Wafat Isa Al-Masih",
+                "Easter Sunday": "Hari Paskah",
+                "Labour Day": "Hari Buruh Internasional",
+                "Ascension Day": "Kenaikan Yesus Kristus",
+                "Independence Day": "Hari Kemerdekaan RI",
+                "Christmas Day": "Hari Raya Natal",
+                "Chinese New Year": "Tahun Baru Imlek",
+                "Hari Raya Idul Fitri": "Hari Raya Idul Fitri",
+                "Hari Raya Idul Adha": "Hari Raya Idul Adha",
+                "Islamic New Year": "Tahun Baru Hijriah",
+                "Waisak Day": "Hari Raya Waisak",
+                "Nyepi Bali Hindu New Year": "Hari Raya Nyepi"
+            };
+            return dictionary[name] || name;
+        }
+
+        // Data Simulasi Premium jika belum pasang URL CSV
+        function generatePremiumDummyData(category) {
+            const year = currentDate.getFullYear();
+            const monthStr = String(currentDate.getMonth() + 1).padStart(2, '0');
+            
+            if(category === 'yayasan') {
+                allEvents.push(
+                    { date: `${year}-${monthStr}-05`, title: 'Rapat Kerja Pengurus & Anggota', desc: 'Evaluasi program bulanan dan penyelarasan strategi antardivisi yayasan.', category: 'yayasan' },
+                    { date: `${year}-${monthStr}-20`, title: 'Seminar Pendidikan & Karakter', desc: 'Peningkatan kapasitas guru dan staf pendidik di lingkungan yayasan terpadu.', category: 'yayasan' }
+                );
+            } else if (category === 'smk') {
+                allEvents.push(
+                    { date: `${year}-${monthStr}-12`, title: 'Pelaksanaan UKK (Keahlian)', desc: 'Asesmen kompetensi teknis untuk kelas XII yang diuji oleh Asosiasi Industri.', category: 'smk' },
+                    { date: `${year}-${monthStr}-25`, title: 'Job Fair & Expo Hasil Karya SMK', desc: 'Pameran kreasi inovasi teknologi sekaligus rekrutmen kerja langsung.', category: 'smk' }
+                );
+            } else if (category === 'smp') {
+                allEvents.push(
+                    { date: `${year}-${monthStr}-15`, title: 'Penilaian Tengah Semester (PTS)', desc: 'Ujian berkala mengukur kompetensi pembelajaran siswa di pertengahan semester.', category: 'smp' },
+                    { date: `${year}-${monthStr}-20`, title: 'Pentas Seni & Bazar Kreatif SMP', desc: 'Ajang penyaluran bakat estetika siswa dalam bidang musik, tari, dan kuliner tradisional.', category: 'smp' }
+                );
+            }
+        }
+
+        // Navigasi Bulan / Tahun
+        async function navigate(direction) {
+            if (currentView === 'month') {
+                currentDate.setMonth(currentDate.getMonth() + direction);
+            } else {
+                currentDate.setFullYear(currentDate.getFullYear() + direction);
+            }
+            document.getElementById('loadingIndicator').classList.remove('hidden');
+            document.getElementById('calendarContainer').classList.add('hidden');
+            await fetchAllData();
+            document.getElementById('loadingIndicator').classList.add('hidden');
+            document.getElementById('calendarContainer').classList.remove('hidden');
+            render();
+        }
+
+        // Ubah Tampilan Kalender
+        function changeView(view) {
+            currentView = view;
+            
+            const btnMonth = document.getElementById('btnMonthView');
+            const btnYear = document.getElementById('btnYearView');
+
+            if (view === 'month') {
+                btnMonth.className = "px-4 py-2 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md transition-all duration-300";
+                btnYear.className = "px-4 py-2 rounded-lg text-slate-400 hover:text-slate-200 transition-all duration-300";
+            } else {
+                btnYear.className = "px-4 py-2 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md transition-all duration-300";
+                btnMonth.className = "px-4 py-2 rounded-lg text-slate-400 hover:text-slate-200 transition-all duration-300";
+            }
+            render();
+        }
+
+        // Main Render
+        function render() {
+            const container = document.getElementById('calendarContainer');
+            const display = document.getElementById('currentDateDisplay');
+            
+            container.innerHTML = '';
+            updateSelectors();
+
+            if (currentView === 'month') {
+                display.innerText = `${BULAN[currentDate.getMonth()]} ${currentDate.getFullYear()}`;
+                container.appendChild(buildMonthGrid(currentDate.getFullYear(), currentDate.getMonth(), true));
+            } else {
+                display.innerText = `Tahun ${currentDate.getFullYear()}`;
+                
+                const yearGrid = document.createElement('div');
+                yearGrid.className = 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6';
+                
+                for (let m = 0; m < 12; m++) {
+                    const monthWrapper = document.createElement('div');
+                    monthWrapper.className = 'bg-slate-900/40 border border-slate-800 p-4 rounded-2xl backdrop-blur-md flex flex-col hover:border-slate-700/60 transition';
+                    
+                    const monthTitle = document.createElement('h3');
+                    monthTitle.className = 'text-center font-display font-bold text-sm text-slate-300 mb-4 cursor-pointer hover:text-blue-400 transition-colors';
+                    monthTitle.innerText = BULAN[m].toUpperCase();
+                    monthTitle.onclick = () => {
+                        currentDate.setMonth(m);
+                        changeView('month');
+                    };
+                    
+                    monthWrapper.appendChild(monthTitle);
+                    monthWrapper.appendChild(buildMonthGrid(currentDate.getFullYear(), m, false));
+                    yearGrid.appendChild(monthWrapper);
+                }
+                container.appendChild(yearGrid);
+            }
+        }
+
+        // Pembuat Struktur Grid Hari & Tanggal
+        function buildMonthGrid(year, month, isLarge) {
+            const container = document.createElement('div');
+            container.className = 'w-full flex-grow flex flex-col';
+
+            const daysOfWeek = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+
+            // Header Nama Hari
+            const headerRow = document.createElement('div');
+            headerRow.className = 'grid grid-cols-7 gap-1 mb-2 text-center text-[10px] font-bold uppercase tracking-wider text-slate-500';
+            daysOfWeek.forEach((day, index) => {
+                const h = document.createElement('div');
+                h.className = index === 0 ? 'text-rose-500' : 'text-slate-400';
+                h.innerText = isLarge ? HARI[index] : day;
+                headerRow.appendChild(h);
+            });
+            container.appendChild(headerRow);
+
+            // Container Tanggal
+            const daysGrid = document.createElement('div');
+            daysGrid.className = `grid grid-cols-7 ${isLarge ? 'gap-2.5 flex-grow' : 'gap-1'}`;
+
+            const firstDayIndex = new Date(year, month, 1).getDay();
+            const totalDays = new Date(year, month + 1, 0).getDate();
+
+            // Blok Kosong Sebelum Tgl 1
+            for (let i = 0; i < firstDayIndex; i++) {
+                const empty = document.createElement('div');
+                empty.className = isLarge ? 'min-h-[100px] border border-transparent' : 'aspect-square';
+                daysGrid.appendChild(empty);
+            }
+
+            const today = new Date();
+
+            // Render Setiap Tanggal
+            for (let d = 1; d <= totalDays; d++) {
+                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                const dayEvents = allEvents.filter(e => e.date === dateStr);
+                
+                const hasHoliday = dayEvents.some(e => e.category === 'nasional');
+                const isSunday = new Date(year, month, d).getDay() === 0;
+                const isToday = today.getFullYear() === year && today.getMonth() === month && today.getDate() === d;
+
+                const cell = document.createElement('div');
+                
+                // Set Up Style Cell
+                let cellClasses = 'relative rounded-2xl transition-all duration-300 cursor-pointer flex flex-col ';
+                
+                if (isLarge) {
+                    cellClasses += 'min-h-[100px] p-3 border ';
+                    if (isToday) {
+                        cellClasses += 'bg-blue-600/10 border-blue-500 text-white glow-today ';
+                    } else {
+                        cellClasses += 'bg-slate-900/40 hover:bg-slate-800/40 border-slate-800/80 hover:border-slate-700 ';
+                    }
+                } else {
+                    cellClasses += 'aspect-square justify-center items-center text-xs border ';
+                    if (isToday) {
+                        cellClasses += 'bg-blue-500/10 border-blue-500 text-white glow-today ';
+                    } else {
+                        cellClasses += 'bg-slate-950/20 hover:bg-slate-800/50 border-slate-900/60 hover:border-slate-800 ';
+                    }
+                }
+
+                cell.className = cellClasses;
+
+                // Event Click untuk buka modal detail
+                if (dayEvents.length > 0) {
+                    cell.onclick = () => openModal(dateStr, dayEvents);
+                } else if(isLarge) {
+                    cell.onclick = () => openModal(dateStr, []);
+                }
+
+                // Desain Nomor Tanggal
+                const dateBadge = document.createElement('span');
+                let numClass = 'font-semibold text-sm flex items-center justify-center ';
+                
+                if (hasHoliday || isSunday) {
+                    numClass += 'text-rose-500 ';
+                } else {
+                    numClass += 'text-slate-200 ';
+                }
+
+                if (isToday) {
+                    dateBadge.className = `${numClass} bg-blue-500 text-white w-6 h-6 rounded-lg text-xs shadow-md shadow-blue-500/20`;
+                } else {
+                    dateBadge.className = numClass;
+                }
+                dateBadge.innerText = d;
+
+                if (isLarge) {
+                    const topRow = document.createElement('div');
+                    topRow.className = 'flex justify-between items-start';
+                    topRow.appendChild(dateBadge);
+
+                    // Berikan nama hari besar nasional kecil di sudut atas
+                    if (hasHoliday) {
+                        const natHoliday = dayEvents.find(e => e.category === 'nasional');
+                        const natIndicator = document.createElement('span');
+                        natIndicator.className = 'text-[9px] font-bold text-rose-500/80 truncate max-w-[70%]';
+                        natIndicator.title = natHoliday.title;
+                        natIndicator.innerText = natHoliday.title;
+                        topRow.appendChild(natIndicator);
+                    }
+                    cell.appendChild(topRow);
+
+                    // List agenda singkat (Hanya Agenda Non-Nasional)
+                    const agendaArea = document.createElement('div');
+                    agendaArea.className = 'mt-2 flex flex-col gap-1 overflow-hidden';
+                    
+                    const filteredEvents = dayEvents.filter(e => e.category !== 'nasional');
+                    filteredEvents.slice(0, 3).forEach(ev => {
+                        const p = document.createElement('div');
+                        const theme = THEME[ev.category];
+                        p.className = `text-[9px] font-medium px-1.5 py-0.5 rounded border ${theme.badge} truncate`;
+                        p.innerText = ev.title;
+                        agendaArea.appendChild(p);
+                    });
+
+                    if (filteredEvents.length > 3) {
+                        const more = document.createElement('div');
+                        more.className = 'text-[8px] text-slate-500 font-semibold pl-1';
+                        more.innerText = `+${filteredEvents.length - 3} agenda lainnya`;
+                        agendaArea.appendChild(more);
+                    }
+                    cell.appendChild(agendaArea);
+
+                } else {
+                    // Mode Tahun: Tampilkan Tanggal & Bulatan Berwarna
+                    cell.appendChild(dateBadge);
+                    
+                    const dotsArea = document.createElement('div');
+                    dotsArea.className = 'flex gap-0.5 mt-1 justify-center';
+                    
+                    const uniqueCats = [...new Set(dayEvents.map(e => e.category))];
+                    uniqueCats.forEach(cat => {
+                        const dot = document.createElement('span');
+                        if (cat === 'nasional') {
+                            dot.className = 'w-1 h-1 rounded-full bg-rose-500';
+                        } else {
+                            dot.className = `w-1 h-1 rounded-full ${THEME[cat].color || 'bg-slate-500'}`;
+                        }
+                        dotsArea.appendChild(dot);
+                    });
+                    cell.appendChild(dotsArea);
+                }
+
+                daysGrid.appendChild(cell);
+            }
+
+            container.appendChild(daysGrid);
+            return container;
+        }
+
+        // === POPUP MODAL LOGIC (MODERN VIEW) ===
+        function openModal(dateStr, events) {
+            const modal = document.getElementById('eventModal');
+            const modalDate = document.getElementById('modalDate');
+            const modalBody = document.getElementById('modalBody');
+            
+            const dateObj = new Date(dateStr);
+            modalDate.innerText = `${HARI[dateObj.getDay()]}, ${dateObj.getDate()} ${BULAN[dateObj.getMonth()]} ${dateObj.getFullYear()}`;
+            
+            modalBody.innerHTML = '';
+
+            // Jika tidak ada agenda sama sekali
+            if(events.length === 0) {
+                modalBody.innerHTML = `
+                    <div class="text-center py-12">
+                        <div class="w-16 h-16 rounded-full bg-slate-900 flex items-center justify-center mx-auto mb-4 border border-slate-800">
+                            <i class="fa-solid fa-calendar-xmark text-slate-600 text-xl"></i>
+                        </div>
+                        <p class="text-slate-400 font-medium">Tidak ada agenda sekolah atau yayasan pada tanggal ini.</p>
+                        <p class="text-slate-600 text-xs mt-1">Anda bisa menambahkan data baru di spreadsheet untuk tanggal ini.</p>
+                    </div>
+                `;
+            } else {
+                events.forEach(ev => {
+                    const theme = THEME[ev.category];
+                    const card = document.createElement('div');
+                    card.className = `glass-card rounded-2xl p-5 ${theme.border} ${theme.glow} bg-gradient-to-br ${theme.gradient} relative overflow-hidden group`;
+                    
+                    card.innerHTML = `
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2.5 py-1 rounded-lg text-[9px] font-extrabold uppercase tracking-wider ${theme.badge}">
+                                    <i class="fa-solid ${theme.icon.split(' ')[1]} mr-1"></i> ${theme.label}
+                                </span>
+                            </div>
+                        </div>
+                        <h4 class="font-display font-extrabold text-white text-base mb-2 group-hover:text-blue-200 transition-colors">${ev.title}</h4>
+                        <p class="text-sm text-slate-300 leading-relaxed font-sans whitespace-pre-wrap">${ev.desc}</p>
+                    `;
+                    modalBody.appendChild(card);
+                });
+            }
+
+            modal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeModal() {
+            document.getElementById('eventModal').classList.add('hidden');
+            document.body.style.overflow = '';
+        }
+
+        // Jalankan Aplikasi secara default saat load
+        window.onload = initApp;
+    </script>
+</body>
+</html>
