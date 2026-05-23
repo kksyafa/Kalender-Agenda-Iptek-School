@@ -195,7 +195,7 @@
         <p>&copy; 2026 Portal Multi-Agenda Terintegrasi. Semua data tersinkronisasi otomatis dari Google Sheets.</p>
     </footer>
 
-    <!-- POPUP MODAL PREMIUM (Glassmorphic) -->
+    <!-- POPUP MODAL DETAIL AGENDA -->
     <div id="eventModal" class="fixed inset-0 z-50 hidden bg-black/60 backdrop-blur-md flex items-center justify-center p-4">
         <div class="absolute inset-0" onclick="closeModal()"></div>
         
@@ -222,6 +222,21 @@
                     Tutup Detail
                 </button>
             </div>
+        </div>
+    </div>
+
+    <!-- TOMBOL & PANEL DIAGNOSTIK FLOATING (Premium Debugger) -->
+    <button onclick="toggleDiagnostics()" class="fixed bottom-4 right-4 z-50 px-3 py-2 bg-slate-900/90 border border-slate-800 text-slate-300 hover:text-white rounded-xl shadow-lg flex items-center gap-2 text-xs font-bold transition-all duration-200">
+        <i class="fa-solid fa-circle-nodes text-emerald-400 animate-pulse" id="diagStatusDot"></i> 🔍 Diagnostik Sistem
+    </button>
+
+    <div id="diagPanel" class="fixed bottom-16 right-4 z-50 w-80 max-h-[400px] glass-panel rounded-2xl shadow-2xl border border-white/10 flex flex-col hidden animate-modal overflow-hidden">
+        <div class="p-4 border-b border-slate-800/80 bg-slate-950/60 flex justify-between items-center">
+            <h4 class="text-xs font-extrabold font-display text-white uppercase tracking-wider">🛠️ Konsol Diagnostik Data</h4>
+            <button onclick="toggleDiagnostics()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-xs"></i></button>
+        </div>
+        <div id="diagContent" class="p-4 overflow-y-auto custom-scrollbar flex-grow bg-slate-950/40 text-[10px] font-mono space-y-2">
+            <!-- Log diagnostic akan dirender di sini -->
         </div>
     </div>
 
@@ -366,8 +381,32 @@
             ]
         };
 
+        // Logger Sistem Diagnostik
+        function addLog(type, category, message) {
+            const container = document.getElementById('diagContent');
+            const color = type === 'error' ? 'text-rose-400' : type === 'warn' ? 'text-amber-400' : 'text-slate-400';
+            const badge = `[${category.toUpperCase()}]`;
+            
+            const p = document.createElement('p');
+            p.className = `leading-relaxed border-b border-slate-900 pb-1 ${color}`;
+            p.innerText = `${badge} ${message}`;
+            container.appendChild(p);
+
+            // Jika ada error, ubah warna dot di tombol melayang menjadi merah
+            if (type === 'error') {
+                document.getElementById('diagStatusDot').className = "fa-solid fa-circle text-rose-500 animate-pulse";
+            }
+        }
+
+        function toggleDiagnostics() {
+            const panel = document.getElementById('diagPanel');
+            panel.classList.toggle('hidden');
+        }
+
         // Mulai Aplikasi
         async function initApp() {
+            document.getElementById('diagContent').innerHTML = ''; // Reset log
+            addLog('info', 'Sistem', 'Memulai inisialisasi kalender...');
             populateSelectors();
             await fetchAllData();
             document.getElementById('loadingIndicator').classList.add('hidden');
@@ -420,45 +459,67 @@
             
             // 1. Ambil Hari Libur Nasional menggunakan Sistem Hybrid
             const year = currentDate.getFullYear();
+            addLog('info', 'Sistem', `Menghubungkan Database Libur Nasional Tahun ${year}...`);
             await getIndonesianHolidays(year);
 
             // 2. Ambil Data Google Sheets CSV Anda
             const fetchPromises = Object.keys(CSV_URLS).map(category => {
                 return new Promise((resolve) => {
                     const url = CSV_URLS[category];
+                    addLog('info', category, `Menghubungkan ke Google Sheets...`);
                     
                     Papa.parse(url, {
                         download: true,
                         header: true,
                         skipEmptyLines: true,
                         complete: function(results) {
+                            addLog('info', category, `Sukses Fetch. Total baris mentah terbaca: ${results.data.length}`);
+                            
+                            let addedCount = 0;
                             results.data.forEach((row, index) => {
+                                // === PENYELESAIAN MASALAH BOM (Byte Order Mark) ===
+                                // Kita buat row baru yang semua nama kolomnya bersih & berhuruf kecil
+                                const cleanRow = {};
+                                Object.keys(row).forEach(key => {
+                                    const cleanKey = key.replace(/^\uFEFF/, '').toLowerCase().trim();
+                                    cleanRow[cleanKey] = row[key];
+                                });
+
                                 // === FUZZY HEADER MATCHING ===
                                 // Mencari nama kolom yang mirip meskipun huruf kecil/besar atau istilah lain
-                                const keys = Object.keys(row);
-                                const dateKey = keys.find(k => ['tanggal', 'date', 'tgl'].includes(k.toLowerCase().trim()));
-                                const titleKey = keys.find(k => ['kegiatan', 'acara', 'title', 'kegiatan utama', 'nama kegiatan'].includes(k.toLowerCase().trim()));
-                                const descKey = keys.find(k => ['deskripsi', 'keterangan', 'desc', 'rincian', 'uraian'].includes(k.toLowerCase().trim()));
+                                const dateKey = Object.keys(cleanRow).find(k => ['tanggal', 'date', 'tgl', 'hari'].includes(k));
+                                const titleKey = Object.keys(cleanRow).find(k => ['kegiatan', 'acara', 'title', 'kegiatan utama', 'nama kegiatan'].includes(k));
+                                const descKey = Object.keys(cleanRow).find(k => ['deskripsi', 'keterangan', 'desc', 'rincian', 'uraian'].includes(k));
 
-                                if (dateKey && titleKey && row[dateKey] && row[titleKey]) {
-                                    const parsedDate = robustParseDate(row[dateKey]);
+                                if (index === 0) {
+                                    addLog('info', category, `Kolom terdeteksi: ${JSON.stringify(Object.keys(cleanRow))}`);
+                                }
+
+                                if (dateKey && titleKey && cleanRow[dateKey] && cleanRow[titleKey]) {
+                                    const parsedDate = robustParseDate(cleanRow[dateKey]);
                                     
                                     if (parsedDate) {
                                         allEvents.push({
                                             date: parsedDate,
-                                            title: row[titleKey].trim(),
-                                            desc: descKey && row[descKey] ? row[descKey].trim() : 'Tidak ada rincian kegiatan tambahan.',
+                                            title: cleanRow[titleKey].trim(),
+                                            desc: descKey && cleanRow[descKey] ? cleanRow[descKey].trim() : 'Tidak ada rincian kegiatan tambahan.',
                                             category: category
                                         });
+                                        addedCount++;
                                     } else {
-                                        console.warn(`Format tanggal tidak valid pada baris ${index + 1} di sheet ${category}: "${row[dateKey]}"`);
+                                        addLog('warn', category, `Format tanggal tidak valid pada baris ${index + 1}: "${cleanRow[dateKey]}"`);
+                                    }
+                                } else {
+                                    if (index < 3) {
+                                        addLog('warn', category, `Baris ${index + 1} dilewati (Header tidak cocok / data kosong).`);
                                     }
                                 }
                             });
+                            addLog('info', category, `Berhasil sinkronisasi ${addedCount} kegiatan ke kalender.`);
                             resolve();
                         },
                         error: function(err) {
-                            console.warn(`Gagal sinkron CSV kategori: ${category}. Error: `, err);
+                            addLog('error', category, `KONEKSI DI-BLOCK / GAGAL: ${err}`);
                             resolve();
                         }
                     });
@@ -466,7 +527,7 @@
             });
 
             await Promise.all(fetchPromises);
-            console.log("Total agenda tersinkronisasi: ", allEvents.length);
+            addLog('info', 'Sistem', `Selesai sinkronisasi seluruh database.`);
         }
 
         // === PARSER TANGGAL SUPER KUAT & FLEKSIBEL ===
@@ -479,34 +540,52 @@
                 return dateStr;
             }
             
-            // 2. Jika format DD/MM/YYYY atau DD-MM-YYYY (contoh: 23/05/2026 atau 23-05-2026)
-            let dmyMatch = dateStr.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
-            if (dmyMatch) {
-                let day = dmyMatch[1].padStart(2, '0');
-                let month = dmyMatch[2].padStart(2, '0');
-                let year = dmyMatch[3];
-                return `${year}-${month}-${day}`;
-            }
+            // Split berdasarkan spasi, garis miring, strip, atau titik
+            const parts = dateStr.split(/[\s\/\-\.]+/);
             
-            // 3. Jika format YYYY/MM/DD (contoh: 2026/05/23)
-            let ymdMatch = dateStr.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
-            if (ymdMatch) {
-                let year = ymdMatch[1];
-                let month = ymdMatch[2].padStart(2, '0');
-                let day = ymdMatch[3].padStart(2, '0');
-                return `${year}-${month}-${day}`;
-            }
+            if (parts.length === 3) {
+                let day, monthStr, year;
+                
+                // Cari yang mana Tahun (4 digit)
+                if (parts[2].length === 4) {
+                    year = parts[2];
+                    monthStr = parts[1];
+                    day = parts[0].padStart(2, '0');
+                } else if (parts[0].length === 4) {
+                    year = parts[0];
+                    monthStr = parts[1];
+                    day = parts[2].padStart(2, '0');
+                } else {
+                    return null;
+                }
 
-            // 4. Fallback menggunakan Javascript Date Engine (Bisa menerjemahkan nama bulan Indonesia)
-            let cleanedDate = dateStr;
-            const monthsId = ['januari', 'februari', 'maret', 'april', 'mei', 'juni', 'juli', 'agustus', 'september', 'oktober', 'november', 'desember'];
-            const monthsEn = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+                // Terjemahan nama bulan Indonesia & Inggris ke Index Bulan (01 - 12)
+                const monthNamesIdEn = [
+                    ['januari', 'january', 'jan', '01', '1'],
+                    ['februari', 'february', 'feb', '02', '2'],
+                    ['maret', 'march', 'mar', '03', '3'],
+                    ['april', 'apr', '04', '4'],
+                    ['mei', 'may', '05', '5'],
+                    ['juni', 'june', 'jun', '06', '6'],
+                    ['juli', 'july', 'jul', '07', '7'],
+                    ['agustus', 'august', 'aug', '08', '8'],
+                    ['september', 'sept', 'sep', '09', '9'],
+                    ['oktober', 'october', 'okt', 'oct', '10'],
+                    ['november', 'nov', '11'],
+                    ['desember', 'december', 'des', 'dec', '12']
+                ];
+
+                const cleanMonth = monthStr.toLowerCase();
+                const monthIndex = monthNamesIdEn.findIndex(names => names.includes(cleanMonth));
+                
+                if (monthIndex !== -1) {
+                    const month = String(monthIndex + 1).padStart(2, '0');
+                    return `${year}-${month}-${day}`;
+                }
+            }
             
-            monthsId.forEach((m, idx) => {
-                cleanedDate = cleanedDate.toLowerCase().replace(m, monthsEn[idx]);
-            });
-            
-            let parsed = Date.parse(cleanedDate);
+            // Fallback terakhir menggunakan native Javascript Date Engine
+            let parsed = Date.parse(dateStr);
             if (!isNaN(parsed)) {
                 let d = new Date(parsed);
                 return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -526,6 +605,7 @@
                     category: "nasional"
                 }));
                 allEvents.push(...localHolidays);
+                addLog('info', 'Libur Nasional', `Sukses meload ${localHolidays.length} hari libur nasional dari Database Lokal.`);
                 return;
             }
 
@@ -549,6 +629,7 @@
 
                 holidayCache[year] = holidays;
                 allEvents.push(...holidays);
+                addLog('info', 'Libur Nasional', `Sukses meload ${holidays.length} hari libur nasional secara Online.`);
             } catch (err) {
                 // Fallback paling akhir jika internet putus/offline
                 const minimalHolidays = [
@@ -559,6 +640,7 @@
                     { date: `${year}-12-25`, title: 'Hari Raya Natal', desc: 'Libur Keagamaan Nasional', category: 'nasional' }
                 ];
                 allEvents.push(...minimalHolidays);
+                addLog('warn', 'Libur Nasional', `Koneksi gagal. Mengaktifkan 5 libur utama nasional secara offline.`);
             }
         }
 
